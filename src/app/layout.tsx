@@ -3,8 +3,8 @@ import type { Metadata } from "next";
 import { Inter as FontSans } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import ClientProvider from "../components/ClientLayout"; // Ensure the import path is correct
-import { ToastContainer } from 'react-toastify'; // Import ToastContainer
+import ClientProvider from "../components/ClientLayout"; 
+import { ToastContainer } from 'react-toastify'; 
 
 const fontSans = FontSans({
   subsets: ["latin"],
@@ -27,7 +27,7 @@ export default function RootLayout({
         <ClientProvider>
           {children}
         </ClientProvider>
-        <ToastContainer /> {/* Add ToastContainer here */}
+        <ToastContainer /> 
       </body>
     </html>
   );

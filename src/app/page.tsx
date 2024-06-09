@@ -2,8 +2,8 @@
 import { useSession, signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 import { useState, useEffect } from 'react';
-import { Input } from "@/components/ui/input";  // Assuming the Input component is here
-import { Button } from "@/components/ui/button";  // Assuming the Button component is here
+import { Input } from "@/components/ui/input";  
+import { Button } from "@/components/ui/button";  
 import { WavyBackground } from "@/components/ui/wavy-background";
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -15,7 +15,6 @@ const HomePage = () => {
   const [isApiKeySaved, setIsApiKeySaved] = useState(false);
 
   useEffect(() => {
-    // Check if the Gemini API key is already saved
     const savedApiKey = localStorage.getItem('geminiApiKey');
     if (savedApiKey) {
       setApiKey(savedApiKey);
@@ -31,7 +30,7 @@ const HomePage = () => {
 
   return (
     <WavyBackground className="flex flex-col justify-center min-h-screen py-2">
-      <h1 className="text-6xl font-bold mb-4">EMAILa-AI</h1>
+      <h1 className="text-6xl font-bold mb-4">EMAIL-AI</h1>
       <p className="text-xl mb-12">Classify emails with ease</p>
       
       <ol className="relative text-gray-500 border-s border-gray-200 dark:border-gray-700 dark:text-gray-400">                  

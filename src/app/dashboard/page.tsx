@@ -1,11 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
+
+import { useEffect, useState, ChangeEvent } from 'react';
 import { useSession, signIn, signOut } from 'next-auth/react';
 import axios from 'axios';
-import DataTable from 'react-data-table-component';
-import ReactSelect from 'react-select';
+import DataTable, { TableColumn } from 'react-data-table-component';
+import ReactSelect, { StylesConfig, MultiValue, ActionMeta } from 'react-select';
 import moment from 'moment';
-import { toast } from 'react-toastify'; 
+import { toast } from 'react-toastify';
 import Link from 'next/link';
 import {
   Bell,
@@ -43,28 +44,43 @@ import {
 import { Input } from '@/components/ui/input';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
+interface Email {
+  id: string;
+  title: string;
+  date: string;
+  category: string;
+}
+
+interface Filters {
+  important: boolean;
+  promotions: boolean;
+  social: boolean;
+  marketing: boolean;
+  spam: boolean;
+  general: boolean;
+  all: boolean;
+}
+
 const customStyles = {
-	tableWrapper: {
-		style: {
+  tableWrapper: {
+    style: {
       borderRadius: '10px',
-		},
-	},
+    },
+  },
   header: {
     style: {
-      fontSize: "22px",
-      fontWeight: "bold",
-      color: "blue",
-
+      fontSize: '22px',
+      fontWeight: 'bold',
+      color: 'blue',
     },
   },
   headCells: {
     style: {
-      fontSize: "18px",
-      fontWeight: "bold",
-      background: "#22c55e",
-      paddingLeft: "16px",
-      paddingRight: "16px",
-
+      fontSize: '18px',
+      fontWeight: 'bold',
+      background: '#22c55e',
+      paddingLeft: '16px',
+      paddingRight: '16px',
     },
   },
   rows: {
@@ -74,24 +90,23 @@ const customStyles = {
   },
   cells: {
     style: {
-      fontSize: "16px",
-      paddingLeft: "16px",
-      paddingRight: "16px",
+      fontSize: '16px',
+      paddingLeft: '16px',
+      paddingRight: '16px',
       margin: '1rem',
-
       gap: '2rem',
     },
   },
   highlightOnHoverStyle: {
     backgroundColor: 'red',
-  }
+  },
 };
 
-const customSelectStyles = {
+const customSelectStyles: StylesConfig<{ value: string; label: string }, true> = {
   control: (base) => ({
     ...base,
     color: 'black',
-	border:'none',
+    border: 'none',
     borderRadius: '10px',
   }),
   menu: (base) => ({
@@ -110,13 +125,13 @@ const customSelectStyles = {
 
 const IntegratedDashboard = () => {
   const { data: session, status } = useSession();
-  const [classification, setClassification] = useState([]);
-  const [userEmail, setUserEmail] = useState('');
-  const [nextPageToken, setNextPageToken] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedFilters, setSelectedFilters] = useState([]);
-  const [filters, setFilters] = useState({
+  const [classification, setClassification] = useState<Email[]>([]);
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [nextPageToken, setNextPageToken] = useState<string | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [selectedFilters, setSelectedFilters] = useState<MultiValue<{ value: string; label: string }>>([]);
+  const [filters, setFilters] = useState<Filters>({
     important: true,
     promotions: true,
     social: true,
@@ -128,25 +143,25 @@ const IntegratedDashboard = () => {
 
   const categories = ['Important', 'Promotions', 'Social', 'Marketing', 'Spam', 'General'];
 
-   useEffect(() => {
+  useEffect(() => {
     if (session?.accessToken) {
       const geminiApiKey = localStorage.getItem('geminiApiKey');
       if (!geminiApiKey) {
         toast.warn('Please enter your Gemini API key in the home page.');
-      } else {
+      } else if (session.user?.email) {
         setUserEmail(session.user.email);
         loadEmailsFromLocalStorage(session.user.email);
-        fetchEmails(session.user.email, session.accessToken, null, false); // Initial fetch with prepend
+        fetchEmails(session.user.email, session.accessToken, null, false);
       }
     }
   }, [session]);
 
-  const loadEmailsFromLocalStorage = (email) => {
-    const storedEmails = JSON.parse(localStorage.getItem(`classifiedEmails_${email}`)) || [];
+  const loadEmailsFromLocalStorage = (email: string) => {
+    const storedEmails: Email[] = JSON.parse(localStorage.getItem(`classifiedEmails_${email}`) || '[]');
     setClassification(storedEmails);
   };
 
-  const fetchEmails = async (email, accessToken, pageToken, append = true) => {
+  const fetchEmails = async (email: string, accessToken: string, pageToken: string | null, append: boolean = true) => {
     setLoading(true);
     try {
       const response = await axios.get('https://www.googleapis.com/gmail/v1/users/me/messages', {
@@ -159,8 +174,8 @@ const IntegratedDashboard = () => {
         },
       });
 
-      const emailIds = response.data.messages.map(msg => msg.id);
-      const emailPromises = emailIds.map(id =>
+      const emailIds: string[] = response.data.messages.map((msg: { id: string }) => msg.id);
+      const emailPromises = emailIds.map((id: string) =>
         axios.get(`https://www.googleapis.com/gmail/v1/users/me/messages/${id}`, {
           headers: {
             Authorization: `Bearer ${accessToken}`,
@@ -170,31 +185,32 @@ const IntegratedDashboard = () => {
 
       const emails = await Promise.all(emailPromises);
 
-      const emailData = emails.map(email => {
-        const subjectHeader = email.data.payload.headers.find(header => header.name === 'Subject');
-        const dateHeader = email.data.payload.headers.find(header => header.name === 'Date');
+      const emailData: Email[] = emails.map((email: any) => {
+        const subjectHeader = email.data.payload.headers.find((header: any) => header.name === 'Subject');
+        const dateHeader = email.data.payload.headers.find((header: any) => header.name === 'Date');
         return {
           id: email.data.id,
           title: subjectHeader ? subjectHeader.value : '(No Subject)',
           date: dateHeader ? moment(dateHeader.value).format('YYYY-MM-DD HH:mm:ss') : 'Unknown',
+          category: 'Uncategorized', // Temporary default value, will be updated later
         };
       });
 
-      const storedEmails = JSON.parse(localStorage.getItem(`classifiedEmails_${email}`)) || [];
-      const storedEmailIds = storedEmails.map(email => email.id);
-      const newEmails = emailData.filter(email => !storedEmailIds.includes(email.id));
+      const storedEmails: Email[] = JSON.parse(localStorage.getItem(`classifiedEmails_${email}`) || '[]');
+      const storedEmailIds: string[] = storedEmails.map((email: Email) => email.id);
+      const newEmails = emailData.filter((email: Email) => !storedEmailIds.includes(email.id));
 
       if (newEmails.length > 0) {
-        const titles = newEmails.map(email => email.title);
+        const titles = newEmails.map((email: Email) => email.title);
         const result = await axios.post('/api/classifyEmails', { emailTitles: titles });
-        const classifiedEmails = result.data.classifiedEmails || [];
+        const classifiedEmails: { category: string }[] = result.data.classifiedEmails || [];
 
-        const emailsWithClassification = newEmails.map((email, index) => ({
+        const emailsWithClassification: Email[] = newEmails.map((email, index) => ({
           ...email,
           category: classifiedEmails[index] ? classifiedEmails[index].category : 'Uncategorized',
         }));
 
-        const updatedEmails = append ? [...storedEmails, ...emailsWithClassification] : [...emailsWithClassification, ...storedEmails];
+        const updatedEmails: Email[] = append ? [...storedEmails, ...emailsWithClassification] : [...emailsWithClassification, ...storedEmails];
         localStorage.setItem(`classifiedEmails_${email}`, JSON.stringify(updatedEmails));
         setClassification(updatedEmails);
       } else {
@@ -210,17 +226,20 @@ const IntegratedDashboard = () => {
     }
   };
 
-  const handleSearch = (event) => {
+  const handleSearch = (event: ChangeEvent<HTMLInputElement>) => {
     setSearchTerm(event.target.value);
   };
 
-  const handleFilterChange = (selectedOptions) => {
-    setSelectedFilters(selectedOptions || []);
-    const selectedValues = selectedOptions?.map(option => option.value) || [];
-    const newFilters = categories.reduce((acc, category) => {
-      acc[category.toLowerCase()] = selectedValues.includes(category.toLowerCase());
+  const handleFilterChange = (
+    newValue: MultiValue<{ value: string; label: string }>,
+    actionMeta: ActionMeta<{ value: string; label: string }>
+  ) => {
+    setSelectedFilters(newValue || []);
+    const selectedValues = newValue?.map(option => option.value) || [];
+    const newFilters: Filters = categories.reduce((acc, category) => {
+      acc[category.toLowerCase() as keyof Filters] = selectedValues.includes(category.toLowerCase());
       return acc;
-    }, {});
+    }, {} as Filters);
 
     newFilters.all = selectedValues.includes('all') || selectedValues.length === 0;
     setFilters(newFilters);
@@ -228,20 +247,20 @@ const IntegratedDashboard = () => {
 
   const filteredEmails = classification.filter(email => {
     const matchesSearch = email.title.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filters.all || filters[email.category.toLowerCase()];
+    const matchesFilter = filters.all || filters[email.category.toLowerCase() as keyof Filters];
     return matchesSearch && matchesFilter;
   });
 
-  const columns = [
+  const columns: TableColumn<Email>[] = [
     {
       name: 'Category',
-      selector: row => row.category,
+      selector: (row: Email) => row.category,
       sortable: true,
     },
     {
       name: 'Email Title',
-      selector: row => row.title,
-      cell: row => (
+      selector: (row: Email) => row.title,
+      cell: (row: Email) => (
         <a href={`https://mail.google.com/mail/u/0/#inbox/${row.id}`} target="_blank" rel="noopener noreferrer" className="text-blue-500 underline">
           {row.title}
         </a>
@@ -249,176 +268,56 @@ const IntegratedDashboard = () => {
       sortable: true,
     },
     {
-      name: 'Date Received',
-      selector: row => row.date,
+      name: 'Date',
+      selector: (row: Email) => row.date,
       sortable: true,
     },
   ];
 
-  const filterOptions = [
-    { value: 'all', label: 'All' },
-    ...categories.map(category => ({
-      value: category.toLowerCase(),
-      label: category,
-    })),
-  ];
+  if (status === 'loading') {
+    return <div>Loading...</div>;
+  }
 
-  const handleLoadMore = () => {
-    if (nextPageToken) {
-      fetchEmails(userEmail, session.accessToken, nextPageToken, true);
-    } else {
-      console.log('No more emails to load');
-    }
-  };
-
-  const handleRefresh = () => {
-    fetchEmails(userEmail, session.accessToken, null, false);
-  };
+  if (status === 'unauthenticated') {
+    signIn();
+    return null;
+  }
 
   return (
-    <div className="grid min-h-screen w-full md:grid-cols-[220px_1fr] lg:grid-cols-[280px_1fr]">
-      <div className="hidden border-r bg-muted/40 md:block">
-        <div className="flex h-full max-h-screen flex-col gap-2">
-          <div className="flex h-14 items-center border-b px-4 lg:h-[60px] lg:px-6">
-            <Link href="/" className="flex items-center gap-2 font-semibold">
-              <MailSearch className="h-6 w-6" />
-              <span className="">Email-AI</span>
-            </Link>
-          </div>
-          <div className="flex-1">
-            <nav className="grid items-start px-2 text-lg font-large lg:px-4">
-              <Link
-                href="/dummy"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-              >
-                <Gauge className="h-4 w-4" />
-                Dashboard{' '}
-              </Link>
-              <Link
-                href="/contact"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-              >
-                <Users className="h-4 w-4" />
-                Contact Us
-              </Link>
-              <Link
-                href="/TermsAndService"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-              >
-                <ReceiptText className="h-4 w-4" />
-                Terms And Conditions
-              </Link>
-            </nav>
-          </div>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Email Dashboard</h1>
+      <div className="mb-4 flex items-center">
+        <Input
+          type="text"
+          placeholder="Search emails..."
+          value={searchTerm}
+          onChange={handleSearch}
+          className="mr-2"
+        />
+        <ReactSelect
+          isMulti
+          options={categories.map(category => ({ value: category.toLowerCase(), label: category }))}
+          value={selectedFilters}
+          onChange={handleFilterChange}
+          styles={customSelectStyles}
+          placeholder="Filter by category"
+        />
+      </div>
+      <DataTable
+        columns={columns}
+        data={filteredEmails}
+        customStyles={customStyles}
+        highlightOnHover
+        pointerOnHover
+        pagination
+      />
+      {nextPageToken && (
+        <div className="mt-4">
+          <Button onClick={() => fetchEmails(userEmail, session!.accessToken!, nextPageToken)}>
+            Load More
+          </Button>
         </div>
-      </div>
-      <div className="flex flex-col">
-        <header className="flex h-14 items-center gap-4 border-b bg-muted/40 px-4 lg:h-[60px] lg:px-6">
-          <Sheet>
-            <SheetTrigger asChild>
-              <Button variant="outline" size="icon" className="shrink-0 md:hidden">
-                <Menu className="h-5 w-5" />
-                <span className="sr-only">Toggle navigation menu</span>
-              </Button>
-            </SheetTrigger>
-            <SheetContent side="left" className="flex flex-col">
-              <nav className="grid items-start px-2 text-lg font-large lg:px-4">
-                <Link
-                  href="/dummy"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                >
-                  <Gauge className="h-4 w-4" />
-                  Dashboard{' '}
-                </Link>
-                <Link
-                  href="/contact"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                >
-                  <Users className="h-4 w-4" />
-                  Contact Us
-                </Link>
-                <Link
-                  href="/TermsAndService"
-                  className="flex items-center gap-3 rounded-lg px-3 py-2 text-muted-foreground transition-all hover:text-primary"
-                >
-                  <ReceiptText className="h-4 w-4" />
-                  Terms And Conditions
-                </Link>
-              </nav>
-            </SheetContent>
-          </Sheet>
-          <div className="ml-auto flex items-center space-x-4">
-            <nav className="flex items-center space-x-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <div className="flex items-center gap-2 cursor-pointer">
-                    <span>
-                      {session?.user?.name ? session.user.name : 'Login please'}
-                    </span>
-                    {session?.user?.image ? (
-                      <img src={session.user.image} alt="Profile" className="rounded-full w-8 h-8 m-3" />
-                    ) : (
-                      <CircleUser className="h-5 w-5" />
-                    )}
-                  </div>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>My Account</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {session ? (
-                    <DropdownMenuItem onClick={() => signOut()}>Logout</DropdownMenuItem>
-                  ) : (
-                    <DropdownMenuItem onClick={() => signIn('google')}>Login</DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </nav>
-          </div>
-        </header>
-        <main className="flex-1 p-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Email Classification</CardTitle>
-              <CardDescription>
-                Emails classified by category
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="mb-4 flex gap-4">
-                <Input
-                  type="text"
-                  placeholder="Search by title"
-                  value={searchTerm}
-                  onChange={handleSearch}
-                  className="w-80"
-                />
-                <ReactSelect
-                  isMulti
-                  options={filterOptions}
-                  onChange={handleFilterChange}
-                  placeholder="Filter by category"
-                  styles={customSelectStyles}
-                />
-                <Button onClick={handleLoadMore} className="ml-2">
-                  Load More
-                </Button>
-                <Button onClick={handleRefresh} className="ml-2">
-                  Refresh
-                </Button>
-              </div>
-              <DataTable 
-                customStyles={customStyles} 
-                theme="dark" 
-                columns={columns} 
-                data={filteredEmails} 
-                pagination 
-                highlightOnHover 
-                pointerOnHover 
-              />
-            </CardContent>
-          </Card>
-        </main>
-      </div>
+      )}
     </div>
   );
 };
